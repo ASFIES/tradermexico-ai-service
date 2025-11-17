@@ -6,6 +6,18 @@ app = Flask(__name__)
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+# ---------------------------------------------------
+# SALUD DEL SERVICIO (opcional pero útil)
+# ---------------------------------------------------
+@app.route("/")
+def health():
+    return "Servicio de perfiles de trader activo", 200
+
+
+# ---------------------------------------------------
+# 1) PRIMER CUESTIONARIO
+#    /interpretar-perfil  (TAL CUAL ME LO MANDASTE)
+# ---------------------------------------------------
 @app.route("/interpretar-perfil", methods=["POST"])
 def interpretar_perfil():
     data = request.get_json(force=True)
@@ -49,3 +61,86 @@ def interpretar_perfil():
     return jsonify({"interpretacion_html": texto_html})
 
 
+# ---------------------------------------------------
+# 2) SEGUNDO CUESTIONARIO
+#    /perfil-trader  (cuestionario_trading.php)
+# ---------------------------------------------------
+
+def clasificar_trader_por_puntaje(puntaje: int):
+    """
+    Usa el MISMO rango que en PHP:
+      5–8  → Básico  → Trader Inicial
+      9–12 → Intermedio → Trader Estratégico
+      13–15→ Avanzado → Trader Competitivo
+    """
+    if puntaje <= 8:
+        perfil = "Trader Inicial"
+        nivel = "BÁSICO"
+    elif puntaje <= 12:
+        perfil = "Trader Estratégico"
+        nivel = "INTERMEDIO"
+    else:
+        perfil = "Trader Competitivo"
+        nivel = "AVANZADO"
+    return perfil, nivel
+
+
+@app.route("/perfil-trader", methods=["POST"])
+def perfil_trader():
+    """
+    Endpoint para el SEGUNDO cuestionario (cuestionario_trading.php).
+    - Recibe: puntaje total (5–15) y lista de respuestas [p1..p5]
+    - Devuelve: perfil, nivel y descripcion (texto tipo horóscopo, sin HTML)
+    """
+    data = request.get_json(force=True)
+
+    puntaje = int(data.get("puntaje", 0))
+    respuestas = data.get("respuestas", [])
+
+    # 1) Clasificar según el puntaje
+    perfil, nivel = clasificar_trader_por_puntaje(puntaje)
+
+    # 2) Pedirle a OpenAI que escriba el “horóscopo” de este perfil
+    prompt_usuario = f"""
+    Actúa como un coach financiero empático para un mini test de perfil de trader.
+
+    Datos del participante:
+    - Puntaje total: {puntaje} (rango 5–15).
+    - Perfil asignado: {perfil}.
+    - Nivel: {nivel}.
+    - Respuestas numéricas (p1..p5): {respuestas}.
+
+    Instrucciones:
+    - Escribe un mensaje tipo horóscopo financiero en español, cálido y profesional.
+    - Extensión: 2 párrafos cortos.
+    - Debe sonar coherente con el perfil y el nivel (básico / intermedio / avanzado).
+    - No repitas los datos numéricos literalmente, interprétalos en lenguaje humano.
+    - NO uses listas, ni bullets, ni HTML. Solo texto plano.
+    """
+
+    completion = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        temperature=0.8,
+        messages=[
+            {"role": "system", "content": "Eres un asesor financiero profesional y cálido."},
+            {"role": "user", "content": prompt_usuario}
+        ],
+    )
+
+    texto_descripcion = completion.choices[0].message.content.strip()
+
+    return jsonify({
+        "perfil": perfil,
+        "nivel": nivel,
+        "descripcion": texto_descripcion,
+        "puntaje": puntaje,
+        "respuestas": respuestas,
+    })
+
+
+# ---------------------------------------------------
+# 3) EJECUCIÓN LOCAL (opcional)
+# ---------------------------------------------------
+if __name__ == "__main__":
+    # Para pruebas locales: python app.py
+    app.run(host="0.0.0.0", port=10000, debug=True)
