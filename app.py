@@ -62,7 +62,7 @@ def interpretar_perfil():
 
 
 # ---------------------------------------------------
-# 2) SEGUNDO CUESTIONARIO (AQUÍ ES DONDE SE MODIFICA)
+# 2) SEGUNDO CUESTIONARIO: TIPO DE OPERADOR
 # ---------------------------------------------------
 
 def clasificar_trader_por_puntaje(puntaje: int):
@@ -85,9 +85,9 @@ def perfil_trader():
     """
     Endpoint para el cuestionario_trading.php.
     Devuelve:
-        - Tipo de operador recomendado
-        - Nivel
-        - Texto tipo “horóscopo” (humano, cálido, sin HTML)
+        - Tipo de operador recomendado (perfil)
+        - Nivel (básico / intermedio / avanzado)
+        - Texto tipo “horóscopo” sobre el operador que necesita
     """
     data = request.get_json(force=True)
 
@@ -97,23 +97,24 @@ def perfil_trader():
     # Clasificación automática
     perfil, nivel = clasificar_trader_por_puntaje(puntaje)
 
-    # Nuevo prompt enfocado en "el operador que necesitas"
+    # Prompt enfocado en "el operador que necesitas"
     prompt_usuario = f"""
-    Actúa como un coach financiero empático.  
-    Este test no describe al usuario: describe EL TIPO DE OPERADOR DE TRADING que necesita.
+    Actúa como un coach financiero empático.
+    Este test no describe al usuario: describe EL TIPO DE OPERADOR DE TRADING que necesita a su lado.
 
     Datos:
-    - Puntaje: {puntaje} (5–15)
-    - Perfil asignado: {perfil}
-    - Nivel: {nivel}
-    - Respuestas: {respuestas}
+    - Puntaje total: {puntaje} (rango 5–15).
+    - Perfil asignado: {perfil}.
+    - Nivel: {nivel}.
+    - Respuestas numéricas (p1..p5), sobre preferencias de riesgo, comunicación y delegación: {respuestas}.
 
     Instrucciones:
-    - Escribe 2 párrafos cálidos y profesionales.
-    - Describe al operador que la persona necesita trabajar: su estilo, nivel de riesgo, comunicación, disciplina.
+    - Escribe 2 párrafos en español, cálidos y profesionales.
+    - Describe al operador que la persona necesita: su estilo de riesgo, forma de comunicarse, disciplina
+      y manera de acompañar al inversionista.
     - Habla SIEMPRE en segunda persona: “necesitas un operador que…”.
-    - No uses HTML, ni bullets, ni listas.
-    - No repitas números; interpreta las respuestas de forma humana.
+    - No repitas números; interpreta las respuestas en lenguaje humano.
+    - NO uses HTML, ni bullets, ni listas. Solo texto plano.
     """
 
     completion = client.chat.completions.create(
