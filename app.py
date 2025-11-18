@@ -4,6 +4,7 @@ import os
 
 app = Flask(__name__)
 
+# Asegúrate de que esta variable de entorno esté configurada en tu servicio Render
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 # ---------------------------------------------------
@@ -11,12 +12,12 @@ client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 # ---------------------------------------------------
 @app.route("/")
 def health():
-    return "Servicio de perfiles de trader activo", 200
+    return "Servicio de perfiles de trader activo y listo para asignar operadores", 200
 
 
 # ---------------------------------------------------
-# 1) PRIMER CUESTIONARIO
-#    /interpretar-perfil  (TAL CUAL ME LO MANDASTE)
+# 1) PRIMER CUESTIONARIO (SIN CAMBIOS)
+#    /interpretar-perfil
 # ---------------------------------------------------
 @app.route("/interpretar-perfil", methods=["POST"])
 def interpretar_perfil():
@@ -62,25 +63,23 @@ def interpretar_perfil():
 
 
 # ---------------------------------------------------
-# 2) SEGUNDO CUESTIONARIO
-#    /perfil-trader  (cuestionario_trading.php)
+# 2) SEGUNDO CUESTIONARIO (MODIFICADO)
+#    /perfil-trader
 # ---------------------------------------------------
 
 def clasificar_trader_por_puntaje(puntaje: int):
     """
-    Usa el MISMO rango que en PHP:
-      5–8  → Básico  → Trader Inicial
-      9–12 → Intermedio → Trader Estratégico
-      13–15→ Avanzado → Trader Competitivo
+    Clasifica el puntaje y retorna el nombre del operador asignado.
+    (La lógica debe coincidir con el PHP).
     """
     if puntaje <= 8:
-        perfil = "Trader Inicial"
+        perfil = "Operador de Crecimiento Constante"
         nivel = "BÁSICO"
     elif puntaje <= 12:
-        perfil = "Trader Estratégico"
+        perfil = "Operador Estratégico Balanceado"
         nivel = "INTERMEDIO"
     else:
-        perfil = "Trader Competitivo"
+        perfil = "Operador de Alto Potencial"
         nivel = "AVANZADO"
     return perfil, nivel
 
@@ -89,33 +88,36 @@ def clasificar_trader_por_puntaje(puntaje: int):
 def perfil_trader():
     """
     Endpoint para el SEGUNDO cuestionario (cuestionario_trading.php).
-    - Recibe: puntaje total (5–15) y lista de respuestas [p1..p5]
-    - Devuelve: perfil, nivel y descripcion (texto tipo horóscopo, sin HTML)
+    Recibe el operador asignado por PHP y genera la descripción IA.
     """
     data = request.get_json(force=True)
 
     puntaje = int(data.get("puntaje", 0))
     respuestas = data.get("respuestas", [])
+    # ⬇️ CAPTURA EL NOMBRE DEL OPERADOR ENVIADO DESDE PHP ⬇️
+    operador_asignado = data.get("operador_asignado", "Operador no definido") 
 
-    # 1) Clasificar según el puntaje
-    perfil, nivel = clasificar_trader_por_puntaje(puntaje)
+    # Clasificamos para obtener el Nivel (BÁSICO/INTERMEDIO/AVANZADO)
+    _, nivel = clasificar_trader_por_puntaje(puntaje)
 
-    # 2) Pedirle a OpenAI que escriba el “horóscopo” de este perfil
+
+    # 2) Pedirle a OpenAI que escriba la descripción del operador
     prompt_usuario = f"""
-    Actúa como un coach financiero empático para un mini test de perfil de trader.
+    Actúa como un coach financiero experto que describe las características ideales de un gestor o operador de trading para un cliente.
 
-    Datos del participante:
-    - Puntaje total: {puntaje} (rango 5–15).
-    - Perfil asignado: {perfil}.
-    - Nivel: {nivel}.
+    Datos del cliente:
+    - Puntaje total del test: {puntaje} (rango 5–15).
+    - Nivel asignado: {nivel}.
+    - Operador asignado: {operador_asignado}.
     - Respuestas numéricas (p1..p5): {respuestas}.
 
     Instrucciones:
-    - Escribe un mensaje tipo horóscopo financiero en español, cálido y profesional.
+    - Escribe un mensaje tipo "descripción del operador ideal" en español, profesional y motivador.
+    - El texto debe describir las **características que el operador {operador_asignado} debe tener** para complementar al usuario, basándose en el {nivel} y el puntaje.
     - Extensión: 2 párrafos cortos.
-    - Debe sonar coherente con el perfil y el nivel (básico / intermedio / avanzado).
-    - No repitas los datos numéricos literalmente, interprétalos en lenguaje humano.
+    - No repitas los datos numéricos literalmente.
     - NO uses listas, ni bullets, ni HTML. Solo texto plano.
+    - El tono debe ser de recomendación profesional, enfatizando cómo el operador se ajusta al perfil del cliente.
     """
 
     completion = client.chat.completions.create(
@@ -130,7 +132,7 @@ def perfil_trader():
     texto_descripcion = completion.choices[0].message.content.strip()
 
     return jsonify({
-        "perfil": perfil,
+        "perfil": operador_asignado, # Se devuelve el nombre del operador como "perfil"
         "nivel": nivel,
         "descripcion": texto_descripcion,
         "puntaje": puntaje,
@@ -143,4 +145,5 @@ def perfil_trader():
 # ---------------------------------------------------
 if __name__ == "__main__":
     # Para pruebas locales: python app.py
+    # Asegúrate de tener configurada la variable de entorno OPENAI_API_KEY
     app.run(host="0.0.0.0", port=10000, debug=True)
